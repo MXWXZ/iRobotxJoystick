@@ -1,0 +1,96 @@
+#include <ESP8266WiFi.h>
+#define MAX_SRV_CLIENTS 3 //最大同时连数字，
+
+WiFiServer server(8266); //端口号，范围  0-65535
+WiFiClient serverClients[MAX_SRV_CLIENTS];
+
+const char WiFiAPPSW[] = "12345678"; //设置AP模式下模块所发出的WIFI的密码
+const char AP_NameChar[] = "WXZ_DALAO";
+int data[1500];
+int ind = 0;
+
+void setupWiFi()
+{
+    WiFi.mode(WIFI_AP);
+    uint8_t mac[WL_MAC_ADDR_LENGTH];
+    WiFi.softAPmacAddress(mac);
+
+    String macID = String(mac[WL_MAC_ADDR_LENGTH - 3], HEX) +
+                   String(mac[WL_MAC_ADDR_LENGTH - 2], HEX) +
+                   String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
+    macID.toUpperCase();
+    /*
+     //设置AP模式下的WIFI名称：12345678_ + MAC地址后六位    
+      String AP_NameString = "12345678" + macID;  
+         
+      char AP_NameChar[AP_NameString.length() + 1];  
+      memset(AP_NameChar, AP_NameString.length() + 1, 0);  
+         
+      for (int i=0; i<AP_NameString.length(); i++)  
+        AP_NameChar[i] = AP_NameString.charAt(i);  
+      */
+    WiFi.softAP(AP_NameChar, WiFiAPPSW);
+
+    /*Serial.println();  
+      Serial.println ( "IP address: " );
+      Serial.println ( WiFi.softAPIP() ); */
+
+    server.begin();
+}
+void setup()
+{
+    Serial.begin(115200);
+    /*Serial.println ("\nBegin now!!!"); */
+    setupWiFi();
+}
+
+void loop()
+{
+    uint8_t i;
+    //检测服务器端是否有活动的客户端连接
+    if (server.hasClient())
+    {
+        for (i = 0; i < MAX_SRV_CLIENTS; i++)
+        //查找空闲或者断开连接的客户端，并置为可用
+        {
+            if (!serverClients[i] || !serverClients[i].connected())
+            {
+                if (serverClients[i])
+                    serverClients[i].stop();           //未连接,就释放
+                serverClients[i] = server.available(); //分配新的
+                                                       //  Serial.print("New client: "); Serial.println(i);
+                continue;
+            }
+        }
+        //若没有可用客户端，则停止连接
+        WiFiClient serverClient = server.available();
+        serverClient.stop();
+    }
+    //检查客户端的数据
+    for (i = 0; i < MAX_SRV_CLIENTS; i++)
+    {
+        if (serverClients[i] && serverClients[i].connected())
+        {
+            if (serverClients[i].available())
+            {
+                //Serial.println("Connected to client !!! ");
+                //从Telnet客户端获取数据
+                /*while(serverClients[i].read()!='s'){
+                        
+                    }*/
+                while (serverClients[i].available())
+                {
+                    data[ind] = serverClients[i].read(); //读取client端发送的字符
+                    ind++;
+                }
+                for (int j = 0; j < ind; j++)
+                {
+                    Serial.print(data[j]);
+                }
+                //Serial.println();
+                ind = 0;
+                serverClients[i].print("OK! Got your request."); //在client端回复
+            }
+        }
+    }
+}
